@@ -44,11 +44,12 @@ async function run() {
         // =======================
         /*
          * - Database: HexaaDB
-         * - Collection: Services
+         * - Collection: services, booking
          */
-       
+
 
         const servicesCollection = client.db("HexaaDB").collection("services");
+        const bookingCollection = client.db("HexaaDB").collection("booking");
 
         // =======================
         // API Endpoints
@@ -73,7 +74,7 @@ async function run() {
         /*
          * GET /api/v1/Services/:id
          * ------------------------
-         * - Fetches a specific service by its ID from the "Services" collection.
+         * - Fetches a specific service by its ID from the "services" collection.
          * - ID is passed as a route parameter.
          * - Returns: The service object if found, or a 404 error if not found.
          */
@@ -91,6 +92,21 @@ async function run() {
                 res.status(500).send({ message: "Error fetching the service", error });
             }
         });
+
+        /*
+         * POST /api/v1/booking
+         * -----------------
+         *  - Insert a new item into the collection.
+         */
+        app.post("/api/v1/booking", async (req, res) => {
+            const newItem = req.body;
+            try {
+                const result = await bookingCollection.insertOne(newItem);
+                res.status(201).send(result);
+            } catch (error) {
+                res.status(500).send({ message: "Error adding item", error });
+            }
+        })
 
         // =======================
         // MongoDB Connection Test
