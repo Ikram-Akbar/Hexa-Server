@@ -1,10 +1,10 @@
 // Import required modules
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
 const app = express(); // Initialize Express application
 const port = 5000; // Set the port for the server to run
-require('dotenv').config(); // Load environment variables from .env file
+require("dotenv").config(); // Load environment variables from .env file
 
 // =======================
 // Middleware Configuration
@@ -28,7 +28,7 @@ const client = new MongoClient(uri, {
         version: ServerApiVersion.v1,
         strict: true,
         deprecationErrors: true,
-    }
+    },
 });
 
 // =======================
@@ -39,14 +39,13 @@ async function run() {
         // Connect to the MongoDB client
         await client.connect();
 
-        // =======================
-        // Database & Collection
-        // =======================
         /*
-         * - Database: HexaaDB
-         * - Collection: services, booking
-         */
-
+        =======================
+        Database & Collection
+        =======================
+            - Database: HexaaDB
+            - Collection: services, booking
+        */
 
         const servicesCollection = client.db("HexaaDB").collection("services");
         const bookingCollection = client.db("HexaaDB").collection("booking");
@@ -94,6 +93,27 @@ async function run() {
         });
 
         /*
+         * GET /api/v1/booking
+         * -------------------
+         *  - Fetch booking data based on query parameters (e.g., by email).
+         *  - If no query is provided, it will fetch all bookings.
+         *  - If no results are found, it will return an empty array.
+         */
+
+        app.get("/api/v1/booking", async (req, res) => {
+            try {
+                let query = {};
+                if (req.query?.email) {
+                    query = { email: req.query.email };
+                }
+                const result = await bookingCollection.find(query).toArray();
+                res.status(200).send(result);
+            } catch (error) {
+                res.status(500).send({ message: "Error fetching booking data", error });
+            }
+        });
+
+        /*
          * POST /api/v1/booking
          * -----------------
          *  - Insert a new item into the collection.
@@ -106,7 +126,7 @@ async function run() {
             } catch (error) {
                 res.status(500).send({ message: "Error adding item", error });
             }
-        })
+        });
 
         // =======================
         // MongoDB Connection Test
@@ -116,8 +136,9 @@ async function run() {
          * Logs a success message when connected.
          */
         await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
-
+        console.log(
+            "Pinged your deployment. You successfully connected to MongoDB!"
+        );
     } finally {
         // Keep the connection open for further use (uncomment below to close the connection)
         // await client.close();
