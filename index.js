@@ -2,15 +2,23 @@
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 const app = express(); // Initialize Express application
+const cookieParser = require("cookie-parser");
 const port = 5000; // Set the port for the server to run
 require("dotenv").config(); // Load environment variables from .env file
 
 // =======================
 // Middleware Configuration
 // =======================
-app.use(cors()); // Enable CORS
+app.use(
+    cors({
+        origin: ["http://localhost:5173"],
+        credentials: true,
+    })
+);
 app.use(express.json()); // Parse JSON request bodies
+app.use(cookieParser());
 
 // =======================
 // MongoDB Configuration
@@ -32,6 +40,25 @@ const client = new MongoClient(uri, {
 });
 
 // =======================
+// JWT Authentication Middleware
+// =======================
+const authenticateJWT = (req, res, next) => {
+    const token = req.cookies.token;
+
+    if (token) {
+        jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
+            if (err) {
+                return res.sendStatus(403);
+            }
+            req.user = user;
+            next();
+        });
+    } else {
+        res.sendStatus(401);
+    }
+};
+
+// =======================
 // Server Main Function
 // =======================
 async function run() {
@@ -40,43 +67,47 @@ async function run() {
         await client.connect();
 
         /*
-        =======================
-        Database & Collection
-        =======================
-            - Database: HexaaDB
-            - Collection: services, booking
-        */
+                =======================
+                Database & Collection
+                =======================
+                    - Database: HexaaDB
+                    - Collection: services, booking
+            */
 
         const servicesCollection = client.db("HexaaDB").collection("services");
         const bookingCollection = client.db("HexaaDB").collection("booking");
 
-        // =======================
-        // API Endpoints
-        // =======================
+        // ================================
+        // API Endpoints For Authentication
+        // ================================
 
-        /*
-         * GET /api/v1/Services
-         * --------------------
-         * - Fetches all services from the "Services" collection.
-         * - Returns: An array of service objects.
-         */
+        app.post("/jwt-auth", (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+                expiresIn: "1h",
+            });
+            res
+                .cookie("token", token, {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: "none",
+                })
+                .send({ success: true });
+        });
+
+        // ==========================
+        // API Endpoints For Service
+        // ==========================
+
         app.get("/api/v1/services", async (req, res) => {
             try {
                 const result = await servicesCollection.find().toArray();
-                console.log(result);
                 res.status(200).send(result);
             } catch (error) {
                 res.status(500).send({ message: "Error fetching services", error });
             }
         });
 
-        /*
-         * GET /api/v1/Services/:id
-         * ------------------------
-         * - Fetches a specific service by its ID from the "services" collection.
-         * - ID is passed as a route parameter.
-         * - Returns: The service object if found, or a 404 error if not found.
-         */
         app.get("/api/v1/services/:id", async (req, res) => {
             const id = req.params.id;
             const filter = { _id: new ObjectId(id) };
@@ -92,13 +123,9 @@ async function run() {
             }
         });
 
-        /*
-         * GET /api/v1/booking
-         * -------------------
-         *  - Fetch booking data based on query parameters (e.g., by email).
-         *  - If no query is provided, it will fetch all bookings.
-         *  - If no results are found, it will return an empty array.
-         */
+        // =======================
+        // API Endpoints For Booking
+        // =======================
 
         app.get("/api/v1/booking", async (req, res) => {
             try {
@@ -113,28 +140,30 @@ async function run() {
             }
         });
 
-        /*
-         * POST /api/v1/booking
-         * -----------------
-         *  - Insert a new item into the collection.
-         */
         app.post("/api/v1/booking", async (req, res) => {
             const newItem = req.body;
             try {
                 const result = await bookingCollection.insertOne(newItem);
                 res.status(201).send(result);
             } catch (error) {
-                res.status(500).send({ message: "Error adding item", error });
+                res.status(500).send({ message: "Error adding booking", error });
+            }
+        });
+
+        app.delete("/api/v1/booking/:id", async (req, res) => {
+            try {
+                const id = req.params.id;
+                const query = { _id: new ObjectId(id) };
+                const result = await bookingCollection.deleteOne(query);
+                res.status(200).send(result);
+            } catch (error) {
+                res.status(500).send({ message: "Error deleting booking", error });
             }
         });
 
         // =======================
         // MongoDB Connection Test
         // =======================
-        /*
-         * Pings the MongoDB deployment to ensure a successful connection.
-         * Logs a success message when connected.
-         */
         await client.db("admin").command({ ping: 1 });
         console.log(
             "Pinged your deployment. You successfully connected to MongoDB!"
@@ -151,11 +180,6 @@ run().catch(console.dir);
 // =======================
 // Default Route for Testing
 // =======================
-/*
- * GET /
- * -----
- * - Returns a confirmation message to check if the server is running.
- */
 app.get("/", (req, res) => {
     res.send("Server is running");
 });
@@ -163,10 +187,6 @@ app.get("/", (req, res) => {
 // =======================
 // Start the Server
 // =======================
-/*
- * Starts the Express server on port 5000.
- * Logs the URL when the server is running.
- */
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });
